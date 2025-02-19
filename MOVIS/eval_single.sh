@@ -1,0 +1,1 @@
+python eval_single.py --input_image 'assets/67/image.png' --input_depth 'assets/67/67_depth_re.npy' --input_mask 'assets/67/mask.png' --azimuth 30 --elevation 0
