@@ -114,14 +114,14 @@ def sample_model(input_im, model, sampler, precision, h, w, ddim_steps, n_sample
             T = T[:, None, :].to(c.device)
             T = einops.repeat(T, 'b l n -> b (l k) n', k=c.shape[1])
             c = torch.cat([c, T], dim=-1)
-            c = model.cc_projection(c)
+            c = model.cc_projection(c.float())
             cond = {}
             cond['c_crossattn'] = [c]
             c_concat = model.encode_first_stage((input_im.to(c.device))).mode().detach()
             cond['c_concat'] = [model.encode_first_stage((input_im.to(c.device))).mode().detach()\
                                .repeat(n_samples, 1, 1, 1)]
             if depth1 is not None:
-                cond['depth1'] = [model.encode_first_stage((depth1.to(c.device))).mode().detach()]
+                cond['depth1'] = [model.encode_first_stage((depth1.float().to(c.device))).mode().detach()]
             if mask_super is not None:
                 cond["mask_cond"] = [model.encode_first_stage((mask_super.float().to(c.device))).mode().detach()]
             if scale != 1.0:
@@ -215,11 +215,10 @@ sampler = DDIMSampler(models['turncam'])
 
 # load all the files needed
 input_im = np.array(Image.open(args.input_image))
-input_im = preprocess_image(models, raw_im, preprocess)
 input_im = transforms.ToTensor()(input_im).unsqueeze(0).to(device)
 input_im = input_im * 2 - 1
 input_im = transforms.functional.resize(input_im, [256, 256])
-mask_cond = torch.from_numpy(load_mask1(args.input_mask)).unsqueeze(0)
+mask_cond = torch.from_numpy(load_mask2(args.input_mask)).unsqueeze(0)
 depth_cond = get_depth2(args.input_depth).unsqueeze(0)
 
 # input pose
@@ -227,9 +226,9 @@ default_elevation = 15
 default_dis = 1.6
 default_azimuth = 0
 input_RT = np.zeros((4, 4))
-tmp_x = dis * math.cos(math.radians(default_elevation)) * math.cos(math.radians(default_azimuth))
-tmp_y = dis * math.cos(math.radians(default_elevation)) * math.sin(math.radians(default_azimuth))
-tmp_z = dis * math.sin(math.radians(default_elevation))
+tmp_x = default_dis * math.cos(math.radians(default_elevation)) * math.cos(math.radians(default_azimuth))
+tmp_y = default_dis * math.cos(math.radians(default_elevation)) * math.sin(math.radians(default_azimuth))
+tmp_z = default_dis * math.sin(math.radians(default_elevation))
 campos = np.array([tmp_x, tmp_y, tmp_z])
 tar = np.array([0, 0, 0])
 input_R = look_at(campos, tar)
@@ -241,9 +240,9 @@ ref_input_RT = input_RT
 # output pose
 elevation = args.elevation
 azimuth = args.azimuth
-tmp_x = dis * math.cos(math.radians(elevation)) * math.cos(math.radians(i))
-tmp_y = dis * math.cos(math.radians(elevation)) * math.sin(math.radians(i))
-tmp_z = dis * math.sin(math.radians(elevation))
+tmp_x = default_dis * math.cos(math.radians(elevation)) * math.cos(math.radians(azimuth))
+tmp_y = default_dis * math.cos(math.radians(elevation)) * math.sin(math.radians(azimuth))
+tmp_z = default_dis * math.sin(math.radians(elevation))
 output_RT = np.zeros((4, 4))
 campos1 = np.array([tmp_x, tmp_y, tmp_z])
 tar1 = np.array([0, 0, 0])
@@ -256,6 +255,9 @@ target_view_RT = (output_RT)
 T = get_T2(target_view_RT, ref_input_RT).unsqueeze(0)
 
 x_samples_ddim = sample_model(input_im, models['turncam'], sampler, 'fp32', 256, 256, 50, \
-                                1, 3.0, ddim_eta, T, depth_cond, mask_cond)
-breakpoint()
-print(1)
+                                1, 3.0, 1.0, T, depth_cond, mask_cond)
+
+out_img_tmp = x_samples_ddim.permute(0, 2, 3, 1)
+out_img_tmp = out_img_tmp.numpy()
+out_tmp = (out_img_tmp[0] * 255).astype(np.uint8)
+Image.fromarray(out_tmp).save('1.png')
