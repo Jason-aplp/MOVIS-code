@@ -44,6 +44,12 @@ parser.add_argument("--input_depth", type=str, help="path to input depth")
 parser.add_argument("--input_mask", type=str, help="path to input mask")
 parser.add_argument("--azimuth", type=int, help="azimuth change")
 parser.add_argument("--elevation", type=int, help="elevation change")
+parser.add_argument("--output_path", type=str, help="path to output image")
+parser.add_argument("--default_dist", type=int, default=1.6)
+parser.add_argument("--default_elevation", type=int, default=15)
+parser.add_argument("--ddim_steps", type=int, default=50)
+parser.add_argument("--n_samples", type=int, default=1)
+parser.add_argument("--cfg_scale", type=float, default=3.0)
 
 # Parse the arguments
 args = parser.parse_args()
@@ -222,8 +228,8 @@ mask_cond = torch.from_numpy(load_mask2(args.input_mask)).unsqueeze(0)
 depth_cond = get_depth2(args.input_depth).unsqueeze(0)
 
 # input pose
-default_elevation = 15
-default_dis = 1.6
+default_elevation = args.default_elevation
+default_dis = args.default_dist
 default_azimuth = 0
 input_RT = np.zeros((4, 4))
 tmp_x = default_dis * math.cos(math.radians(default_elevation)) * math.cos(math.radians(default_azimuth))
@@ -238,7 +244,7 @@ input_RT[3, 3] = 1
 ref_input_RT = input_RT
 
 # output pose
-elevation = args.elevation
+elevation = args.elevation + default_elevation
 azimuth = args.azimuth
 tmp_x = default_dis * math.cos(math.radians(elevation)) * math.cos(math.radians(azimuth))
 tmp_y = default_dis * math.cos(math.radians(elevation)) * math.sin(math.radians(azimuth))
@@ -254,10 +260,17 @@ target_view_RT = (output_RT)
 
 T = get_T2(target_view_RT, ref_input_RT).unsqueeze(0)
 
-x_samples_ddim = sample_model(input_im, models['turncam'], sampler, 'fp32', 256, 256, 50, \
-                                1, 3.0, 1.0, T, depth_cond, mask_cond)
+# sorry only this resolution is supported
+resolution_x = 256
+resolution_y = 256
+ddim_steps = args.ddim_steps
+n_samples = args.n_samples
+cfg_scale = args.cfg_scale
+
+x_samples_ddim = sample_model(input_im, models['turncam'], sampler, 'fp32', resolution_x, resolution_y, ddim_steps, \
+                                n_samples, cfg_scale, 1.0, T, depth_cond, mask_cond)
 
 out_img_tmp = x_samples_ddim.permute(0, 2, 3, 1)
 out_img_tmp = out_img_tmp.numpy()
 out_tmp = (out_img_tmp[0] * 255).astype(np.uint8)
-Image.fromarray(out_tmp).save('1.png')
+Image.fromarray(out_tmp).save(args.output_path)
