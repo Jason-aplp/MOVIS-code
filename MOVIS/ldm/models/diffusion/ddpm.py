@@ -538,7 +538,6 @@ class LatentDiffusion(DDPM):
         self.depth1 = kwargs.pop('depth1', None)
         self.mask_super = kwargs.pop('mask_super', None)
         self.schedule = kwargs.pop('schedule', None)
-        breakpoint()
         super().__init__(conditioning_key=conditioning_key, *args, **kwargs)
         self.concat_mode = concat_mode
         self.cond_stage_trainable = cond_stage_trainable

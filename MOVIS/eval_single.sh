@@ -1,7 +1,8 @@
+# azimuth angle rotate counterclockwise
 python eval_single.py \
-    --input_image 'assets/example_3/image.png' \
-    --input_depth 'assets/example_3/depth.npy' \
-    --input_mask 'assets/example_3/mask.png' \
+    --input_image 'assets/SUNRGBD/example_0/image.png' \
+    --input_depth 'assets/SUNRGBD/example_0/depth.npy' \
+    --input_mask 'assets/SUNRGBD/example_0/mask.png' \
     --azimuth 80 \
     --elevation 0 \
     --output_path 'test.png'
