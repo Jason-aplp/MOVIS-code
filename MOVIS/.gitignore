@@ -2,3 +2,4 @@ CLIP/
 last.ckpt
 taming*
 sd-image*
+*__pycache__

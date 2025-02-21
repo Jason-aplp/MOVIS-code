@@ -797,18 +797,10 @@ if __name__ == "__main__":
         lightning_config.trainer = trainer_config
 
         # model
-        if config.model.params.depth:
-            config.model.params.unet_config.params.in_channels += 1
-        if config.model.params.mask:
-            config.model.params.unet_config.params.in_channels += 4
         if config.model.params.depth1:
-            config.model.params.unet_config.params.in_channels += 4
-        if config.model.params.mask2:
             config.model.params.unet_config.params.in_channels += 4
         if config.model.params.mask_super:
             config.model.params.unet_config.params.in_channels += 4
-        if config.model.params.mask_super1:
-            config.model.params.unet_config.params.in_channels += 8
         model = instantiate_from_config(config.model)
         model.cpu()
 

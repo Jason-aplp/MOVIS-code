@@ -24,7 +24,6 @@ import os, sys
 import webdataset as wds
 import math
 from torch.utils.data.distributed import DistributedSampler
-from rotary_embedding_torch import RotaryEmbedding
 import OpenEXR, Imath
 
 # Some hacky things to make experimentation easier
@@ -175,13 +174,8 @@ class ObjaverseDataModuleFromConfig(pl.LightningDataModule):
         self.num_workers = num_workers
         self.total_view = total_view
         self.debug = kwargs.get('debug', False)
-        self.depth = kwargs.get('depth', False)
         self.depth1 = kwargs.get('depth1', False)
-        self.mask = kwargs.get('mask', False)
-        self.mask1 = kwargs.get('mask1', False)
-        self.mask2 = kwargs.get('mask2', False)
         self.mask_super = kwargs.get('mask_super', False)
-        self.mask_super1 = kwargs.get('mask_super1', False)
 
         self.batch_size = 1 if self.debug else batch_size
         if self.debug:
@@ -203,20 +197,20 @@ class ObjaverseDataModuleFromConfig(pl.LightningDataModule):
 
     def train_dataloader(self):
         dataset = ObjaverseData(root_dir=self.root_dir, total_view=self.total_view, validation=False, \
-                                image_transforms=self.image_transforms, debug=self.debug, depth=self.depth, depth1=self.depth1, mask=self.mask, mask1=self.mask1, mask2=self.mask2, mask_super=self.mask_super, mask_super1=self.mask_super1)
+                                image_transforms=self.image_transforms, debug=self.debug, depth1=self.depth1, mask_super=self.mask_super)
         sampler = DistributedSampler(dataset)
         return wds.WebLoader(dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=False,
                              sampler=sampler)
 
     def val_dataloader(self):
         dataset = ObjaverseData(root_dir=self.root_dir, total_view=self.total_view, validation=True, \
-                                image_transforms=self.image_transforms, debug=self.debug, depth=self.depth, depth1=self.depth1, mask=self.mask, mask1=self.mask1, mask2=self.mask2, mask_super=self.mask_super, mask_super1=self.mask_super1)
+                                image_transforms=self.image_transforms, debug=self.debug, depth1=self.depth1, mask_super=self.mask_super)
         sampler = DistributedSampler(dataset)
         return wds.WebLoader(dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=False)
 
     def test_dataloader(self):
         dataset = ObjaverseData(root_dir=self.root_dir, total_view=self.total_view, validation=self.validation,
-                                debug=self.debug, depth=self.depth, depth1=self.depth1, mask=self.mask, mask1=self.mask1, mask2=self.mask2, mask_super=self.mask_super, mask_super1=self.mask_super1)
+                                debug=self.debug, depth1=self.depth1, mask_super=self.mask_super)
         return wds.WebLoader(dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=False)
 
 
@@ -229,13 +223,8 @@ class ObjaverseData(Dataset):
         postprocess=None,
         return_paths=False,
         total_view=12,
-        depth=False,
         depth1=False,
-        mask=False,
-        mask1=False,
-        mask2=False,
         mask_super=False,
-        mask_super1=False,
         validation=False,
         debug=False
         ) -> None:
@@ -250,16 +239,8 @@ class ObjaverseData(Dataset):
             postprocess = instantiate_from_config(postprocess)
         self.postprocess = postprocess
         self.total_view = total_view
-        self.depth = depth
         self.depth1 = depth1
-        self.mask = mask
-        self.mask1 = mask1
-        self.mask2 = mask2
         self.mask_super = mask_super
-        self.mask_super1 = mask_super1
-        self.rotary_emb = RotaryEmbedding(dim=256)
-        self.mask_embed_ori = torch.ones(1, 1, 256, 256)
-        self.mask_embed_ori = self.rotary_emb.rotate_queries_or_keys(self.mask_embed_ori)
 
         if not isinstance(ext, (tuple, list, ListConfig)):
             ext = [ext]
@@ -342,45 +323,8 @@ class ObjaverseData(Dataset):
         return np.array([x, y, z])
 
     def get_T2(self, target_RT, cond_RT):
-        # breakpoint()
         delta = torch.from_numpy(np.linalg.inv(cond_RT) @ target_RT).flatten()
-        # R, T = target_RT[:3, :3], target_RT[:, -1]
-        # T_target = -R.T @ T
-
-        # R_target = self.R2E(R)
-
-        # R, T = cond_RT[:3, :3], cond_RT[:, -1]
-        # T_cond = -R.T @ T
-
-        # R_cond = self.R2E(R)
-
-        # d_T = T_target - T_cond
-        # d_R = R_target - T_target
-
-        # delta = torch.tensor([d_T[0].item(), d_T[1].item(), d_T[2].item(), d_R[0].item(), d_R[1].item(), d_R[2].item()])
         return delta
-
-    def get_depth(self, pth):
-        exr_file = OpenEXR.InputFile(pth)
-
-        pt = Imath.PixelType(Imath.PixelType.FLOAT)
-
-        depth_str = exr_file.channel('R', pt)
-
-        depth = np.frombuffer(depth_str, dtype=np.float32)
-        depth.shape = (512, 512)
-        
-        new_depth = np.zeros_like(depth)
-        new_depth = depth.copy()
-        new_depth[new_depth > 1000] = new_depth[new_depth < 1000].max() * 2
-        depth_min = new_depth.min()
-        depth_max = new_depth.max()
-
-        normalized_depth = (new_depth - depth_min) / (depth_max - depth_min)
-        normalized_depth = cv2.resize(normalized_depth, (32, 32), interpolation=cv2.INTER_LINEAR)
-
-        depth_torch = torch.tensor(normalized_depth)
-        return depth_torch
 
     def get_depth1(self, pth):
         exr_file = OpenEXR.InputFile(pth)
@@ -390,7 +334,7 @@ class ObjaverseData(Dataset):
         depth_str = exr_file.channel('R', pt)
 
         depth = np.frombuffer(depth_str, dtype=np.float32)
-        depth.shape = (512, 512)
+        depth.shape = (256, 256)
         
         new_depth = np.zeros_like(depth)
         new_depth = depth.copy()
@@ -420,25 +364,6 @@ class ObjaverseData(Dataset):
         img[img[:, :, -1] == 0.] = color
         img = Image.fromarray(np.uint8(img[:, :, :3] * 255.))
         return img
-
-    def load_mask(self, path):
-        mask = plt.imread(path)
-        mask = np.uint8(mask * 255.)
-        mask = cv2.resize(mask, (256, 256), interpolation=cv2.INTER_LINEAR)
-        tmp_maxn = mask.max()
-        merge_mask = torch.zeros((256, 256))
-        for i in range(1, tmp_maxn + 1):
-            tmp_mask = torch.tensor(mask==i).unsqueeze(0).unsqueeze(0)
-            mask_embed_num = (self.mask_embed_ori * tmp_mask).mean()
-            mask_embed = torch.ones(1, 1, 256, 256) * mask_embed_num
-            merge_mask = torch.where(tmp_mask.bool(), mask_embed, merge_mask)
-        merge_mask = merge_mask[0, 0, ...].numpy()
-        mask_min = merge_mask.min()
-        mask_max = merge_mask.max()
-        normalized_mask = ((merge_mask - mask_min) / (mask_max - mask_min) - 0.5) * 2.0
-        # normalized_mask = cv2.resize(normalized_mask, (256, 256), interpolation=cv2.INTER_LINEAR)
-        normalized_mask = np.tile(normalized_mask, (3, 1, 1))
-        return normalized_mask
     
     def load_mask1(self, path):
         mask = plt.imread(path)
@@ -480,27 +405,10 @@ class ObjaverseData(Dataset):
             cond_RT = np.eye(4)
             cond_RT[:3, :] = np.load(os.path.join(filename, '%03d_1.npy' % index_cond))
             cond_RT = np.linalg.inv(cond_RT)
-            if self.depth:
-                depth_cond_pth = os.path.join(filename, 'depth_%03d_1.exr' % index_cond)
-                depth_cond = self.get_depth(depth_cond_pth)
             if self.depth1:
                 depth_cond_pth1 = os.path.join(filename, 'depth_%03d_1.exr' % index_cond)
                 depth_cond1 = self.get_depth1(depth_cond_pth1)
-            if self.mask:
-                mask_cond_pth = os.path.join(filename, 'mask_%03d' % index_cond, 'mixed_mask.png')
-                mask_cond = self.load_mask(mask_cond_pth)
-            if self.mask1:
-                mask_cond_pth1 = os.path.join(filename, 'mask_%03d' % index_cond, 'mixed_mask.png')
-                mask_cond1 = self.load_mask(mask_cond_pth1)
-            if self.mask2:
-                mask_cond_pth2 = os.path.join(filename, 'mask_%03d' % index_cond, 'mixed_mask.png')
-                mask_cond2 = self.load_mask1(mask_cond_pth2)
             if self.mask_super:
-                cond_mask_pth = os.path.join(filename, 'mask_%03d' % index_cond, 'mixed_mask.png')
-                target_mask_pth = os.path.join(filename, 'mask_%03d' % index_target, 'mixed_mask.png')
-                cond_mask = self.load_mask1(cond_mask_pth)
-                target_mask = self.load_mask1(target_mask_pth)
-            if self.mask_super1:
                 cond_mask_pth = os.path.join(filename, 'mask_%03d' % index_cond, 'mixed_mask.png')
                 target_mask_pth = os.path.join(filename, 'mask_%03d' % index_target, 'mixed_mask.png')
                 cond_mask = self.load_mask1(cond_mask_pth)
@@ -518,24 +426,12 @@ class ObjaverseData(Dataset):
 
         data["image_target"] = target_im
         data["image_cond"] = cond_im
-        if self.depth:
-            data["depth"] = depth_cond
+
         if self.depth1:
             data["depth1"] = depth_cond1
-        if self.mask:
-            data["mask"] = mask_cond
-        if self.mask1:
-            data["mask1"] = mask_cond1
-        if self.mask2:
-            data["mask2"] = mask_cond2
         if self.mask_super:
             data["mask_cond"] = cond_mask
             data["mask_target"] = target_mask
-        if self.mask_super1:
-            data["mask_cond"] = cond_mask
-            data["mask_target"] = target_mask
-        # data["T"] = self.get_T(target_RT, cond_RT)
-        # data["T1"] = self.get_T1(target_RT, cond_RT)
         data["T2"] = self.get_T2(target_RT, cond_RT)
         # breakpoint()
 

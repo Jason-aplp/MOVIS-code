@@ -22,13 +22,8 @@ model:
         var: 200
 
     cape: True
-    depth: False
     depth1: True
-    mask: False
-    mask1: False
-    mask2: False
     mask_super: True
-    mask_super1: False
     schedule: True
 
     scheduler_config: # 10000 warmup steps
@@ -89,18 +84,13 @@ model:
 data:
   target: ldm.data.simple.ObjaverseDataModuleFromConfig
   params:
-    debug: False
-    root_dir: '/scratch2/generalvision/luruijie/3D-FRONT2'
-    batch_size: 172
-    num_workers: 16
+    debug: True
+    root_dir: '/mnt/buffer/luruijie/movis-data'
+    batch_size: 1
+    num_workers: 0
     total_view: 12
-    depth: False
     depth1: True
-    mask: False
-    mask1: False
-    mask2: False
     mask_super: True
-    mask_super1: False
     schedule: True
     train:
       validation: False

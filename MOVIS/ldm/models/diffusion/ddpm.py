@@ -33,8 +33,6 @@ from main import ImageLogger
 
 __conditioning_keys__ = {'concat': 'c_concat',
                          'crossattn': 'c_crossattn',
-                         'depth': 'depth',
-                         'mask': 'mask',
                          'adm': 'y'}
 
 
@@ -537,16 +535,10 @@ class LatentDiffusion(DDPM):
         self.timestep_sampling_cfg = kwargs.pop('timestep_sampling_config', {'target': 'uniform'})
         # breakpoint()
         self.cape = kwargs.pop('cape', None)
-        self.depth = kwargs.pop('depth', None)
         self.depth1 = kwargs.pop('depth1', None)
-        self.mask = kwargs.pop('mask', None)
-        self.mask1 = kwargs.pop('mask1', None)
-        self.mask2 = kwargs.pop('mask2', None)
         self.mask_super = kwargs.pop('mask_super', None)
-        self.mask_super1 = kwargs.pop('mask_super1', None)
-        # breakpoint()
         self.schedule = kwargs.pop('schedule', None)
-
+        breakpoint()
         super().__init__(conditioning_key=conditioning_key, *args, **kwargs)
         self.concat_mode = concat_mode
         self.cond_stage_trainable = cond_stage_trainable
@@ -774,20 +766,9 @@ class LatentDiffusion(DDPM):
         # T = batch['T'].to(memory_format=torch.contiguous_format).float()
         # T1 = batch['T1'].to(memory_format=torch.contiguous_format).float()
         T2 = batch['T2'].to(memory_format=torch.contiguous_format).float()
-        if self.depth:
-            depth = batch['depth'].to(memory_format=torch.contiguous_format).float()
         if self.depth1:
             depth1 = batch['depth1'].to(memory_format=torch.contiguous_format).float()
-        if self.mask:
-            mask = batch['mask'].to(memory_format=torch.contiguous_format).float()
-        if self.mask1:
-            mask1 = batch['mask1'].to(memory_format=torch.contiguous_format).float()
-        if self.mask2:
-            mask2 = batch['mask2'].to(memory_format=torch.contiguous_format).float()
         if self.mask_super:
-            mask_cond = batch["mask_cond"].to(memory_format=torch.contiguous_format).float()
-            mask_target = batch["mask_target"].to(memory_format=torch.contiguous_format).float()
-        if self.mask_super1:
             mask_cond = batch["mask_cond"].to(memory_format=torch.contiguous_format).float()
             mask_target = batch["mask_target"].to(memory_format=torch.contiguous_format).float()
         
@@ -796,33 +777,15 @@ class LatentDiffusion(DDPM):
             # T = T[:bs].to(self.device)
             # T1 = T1[:bs].to(self.device)
             T2 = T2[:bs].to(self.device)
-            if self.depth:
-                depth = depth[:bs].to(self.device)
             if self.depth1:
                 depth1 = depth1[:bs].to(self.device)
-            if self.mask:
-                mask = mask[:bs].to(self.device)
-            if self.mask1:
-                mask1 = mask1[:bs].to(self.device)
-            if self.mask2:
-                mask2 = mask2[:bs].to(self.device)
             if self.mask_super:
                 mask_cond = mask_cond[:bs].to(self.device)
                 mask_target = mask_target[:bs].to(self.device)
-            if self.mask_super1:
-                mask_cond = mask_cond[:bs].to(self.device)
-                mask_target = mask_target[:bs].to(self.device)
-        if self.depth:
-            depth = depth.unsqueeze(1)
-        if self.mask1:
-            mask1 = mask1.unsqueeze(1)
         x = x.to(self.device)
         encoder_posterior = self.encode_first_stage(x)
         z = self.get_first_stage_encoding(encoder_posterior).detach()
         if self.mask_super:
-            encoder_post = self.encode_first_stage(mask_target)
-            z_mask = self.get_first_stage_encoding(encoder_post).detach()
-        if self.mask_super1:
             encoder_post = self.encode_first_stage(mask_target)
             z_mask = self.get_first_stage_encoding(encoder_post).detach()
         cond_key = cond_key or self.cond_stage_key
@@ -852,20 +815,9 @@ class LatentDiffusion(DDPM):
                 
                 cond["c_crossattn"] = [self.cc_projection(torch.cat([feat_map, rel_pose], dim=-1))]
         cond["c_concat"] = [input_mask * self.encode_first_stage((xc.to(self.device))).mode().detach()]
-        if self.depth:
-            cond["depth"] = [input_mask * depth]
         if self.depth1:
             cond['depth1'] = [input_mask * self.encode_first_stage((depth1.to(self.device))).mode().detach()]
-        if self.mask:
-            cond["mask"] = [input_mask * self.encode_first_stage((mask.to(self.device))).mode().detach()]
-        if self.mask1:
-            cond["c_concat"][0] = cond["c_concat"][0] * mask1
-        if self.mask2:
-            cond["mask2"] = [input_mask * self.encode_first_stage((mask2.to(self.device))).mode().detach()]
         if self.mask_super:
-            cond["mask_cond"] = [input_mask * self.encode_first_stage((mask_cond.to(self.device))).mode().detach()]
-            out = [z, z_mask, cond]
-        elif self.mask_super1:
             cond["mask_cond"] = [input_mask * self.encode_first_stage((mask_cond.to(self.device))).mode().detach()]
             out = [z, z_mask, cond]
         else:
@@ -979,7 +931,7 @@ class LatentDiffusion(DDPM):
 
     def shared_step(self, batch, **kwargs):
         xx = None
-        if self.mask_super or self.mask_super1:
+        if self.mask_super:
             x, xx, c = self.get_input(batch, self.first_stage_key)
         else:
             x, c = self.get_input(batch, self.first_stage_key)
@@ -1147,13 +1099,7 @@ class LatentDiffusion(DDPM):
         # breakpoint()
         noise = default(noise, lambda: torch.randn_like(x_start))
         x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
-        if self.mask_super1:#apply noise to the mask
-            noise1 = None
-            noise1 = default(noise1, lambda: torch.randn_like(xx_start))
-            xx_noisy = self.q_sample(x_start=xx_start, t=t, noise=noise1)
-            model_output = self.apply_model(x_noisy, t, cond, xx_noisy)
-        else:
-            model_output = self.apply_model(x_noisy, t, cond)
+        model_output = self.apply_model(x_noisy, t, cond)
         loss_dict = {}
         prefix = 'train' if self.training else 'val'
 
@@ -1166,10 +1112,6 @@ class LatentDiffusion(DDPM):
 
         loss_simple = self.get_loss(model_output[:, :4, :, :], target, mean=False).mean([1, 2, 3])
 
-        if self.mask_super1:
-            target1 = noise1
-            loss_simple1 = self.get_loss(model_output[:, 4:, :, :], target1, mean=False).mean([1, 2, 3])
-            loss_dict.update({f'{prefix}/loss_simple1': loss_simple1.mean().detach()})
         
         if (xx_start is not None and self.mask_super):
             loss_simple1 = self.get_loss(model_output[:, 4:, :, :], xx_start, mean=False).mean([1, 2, 3])
@@ -1177,8 +1119,6 @@ class LatentDiffusion(DDPM):
 
         logvar_t = self.logvar[t].to(self.device)
         loss = loss_simple / torch.exp(logvar_t) + logvar_t
-        if self.mask_super1:
-            loss += 0.01 * loss_simple1 / torch.exp(logvar_t) + logvar_t
         
         # loss = loss_simple / torch.exp(self.logvar) + self.logvar
         if self.learn_logvar:
@@ -1189,15 +1129,9 @@ class LatentDiffusion(DDPM):
 
         loss_vlb = self.get_loss(model_output[:, :4, :, :], target, mean=False).mean(dim=(1, 2, 3))
         loss_vlb = (self.lvlb_weights[t] * loss_vlb).mean()
-        if self.mask_super1:
-            loss_vlb1 = self.get_loss(model_output[:, 4:, :, :], target1, mean=False).mean(dim=(1, 2, 3))
-            loss_vlb1 = (self.lvlb_weights[t] * loss_vlb1).mean()
-            loss_dict.update({f'{prefix}/loss_vlb1': loss_vlb1.detach()})
 
         loss_dict.update({f'{prefix}/loss_vlb': loss_vlb.detach()})
         loss += (self.original_elbo_weight * loss_vlb)
-        if self.mask_super1:
-            loss += (self.original_elbo_weight * loss_vlb1 * 0.01)
         if (xx_start is not None and self.mask_super):
             loss += loss_simple1.mean() * 0.1
             loss_dict.update({f'{prefix}/loss_mask': loss_simple1.mean().detach()})
@@ -1399,8 +1333,6 @@ class LatentDiffusion(DDPM):
             ddim_sampler = DDIMSampler(self)
             shape = (self.channels, self.image_size, self.image_size)
             flg = False
-            if (self.mask_super1):
-                flg = True
             tmp_out = ddim_sampler.sample(ddim_steps, batch_size,
                                                          shape, cond, flg=flg, verbose=False, **kwargs)
             if (len(tmp_out) == 2):
@@ -1434,17 +1366,9 @@ class LatentDiffusion(DDPM):
         cond = {}
         cond["c_crossattn"] = [c]
         cond["c_concat"] = [torch.zeros([batch_size, 4, image_size // 8, image_size // 8]).to(self.device)]
-        if self.depth:
-            cond["depth"] = [torch.zeros([batch_size, 1, image_size //8, image_size // 8]).to(self.device)]
         if self.depth1:
             cond["depth1"] = [torch.zeros([batch_size, 4, image_size //8, image_size // 8]).to(self.device)]
-        if self.mask:
-            cond["mask"] = [torch.zeros([batch_size, 4, image_size //8, image_size // 8]).to(self.device)]
-        if self.mask2:
-            cond["mask2"] = [torch.zeros([batch_size, 4, image_size //8, image_size // 8]).to(self.device)]
         if self.mask_super:
-            cond["mask_cond"] = [torch.zeros([batch_size, 4, image_size //8, image_size // 8]).to(self.device)]
-        if self.mask_super1:
             cond["mask_cond"] = [torch.zeros([batch_size, 4, image_size //8, image_size // 8]).to(self.device)]
         return cond
 
@@ -1459,7 +1383,7 @@ class LatentDiffusion(DDPM):
 
         log = dict()
         # breakpoint()
-        if self.mask_super or self.mask_super1:
+        if self.mask_super:
             z, z_mask, c, x, xrec, xc = self.get_input(batch, self.first_stage_key,
                                            return_first_stage_outputs=True,
                                            force_c_encode=True,
@@ -1536,19 +1460,10 @@ class LatentDiffusion(DDPM):
             uc = self.get_unconditional_conditioning(N, unconditional_guidance_label, image_size=x.shape[-1])
             uc["c_crossattn"] = [torch.zeros_like(c["c_crossattn"][0])]
             uc["c_concat"] = [torch.zeros_like(c["c_concat"][0])]
-            if self.depth:
-                uc["depth"] = [torch.zeros_like(c["depth"][0])]
             if self.depth1:
                 uc["depth1"] = [torch.zeros_like(c["depth1"][0])]
-            if self.mask:
-                uc["mask"] = [torch.zeros_like(c["mask"][0])]
-            if self.mask2:
-                uc["mask2"] = [torch.zeros_like(c["mask2"][0])]
             if self.mask_super:
                 uc["mask_cond"] = [torch.zeros_like(c["mask_cond"][0])]
-            if self.mask_super1:
-                uc["mask_cond"] = [torch.zeros_like(c["mask_cond"][0])]
-            # uc = torch.zeros_like(c)
             with ema_scope("Sampling with classifier-free guidance"):
                 samples_cfg, _ = self.sample_log(cond=c, batch_size=N, ddim=use_ddim,
                                                  ddim_steps=ddim_steps, eta=ddim_eta,
@@ -1679,7 +1594,7 @@ class DiffusionWrapper(pl.LightningModule):
         self.conditioning_key = conditioning_key
         assert self.conditioning_key in [None, 'concat', 'crossattn', 'hybrid', 'adm', 'hybrid-adm']
 
-    def forward(self, x, t, xx = None, c_concat: list = None, c_crossattn: list = None, depth: list = None, depth1: list = None, mask: list = None, mask2: list = None, mask_cond: list = None, c_adm=None):
+    def forward(self, x, t, xx = None, c_concat: list = None, c_crossattn: list = None, depth1: list = None, mask_cond: list = None, c_adm=None):
         # breakpoint()
         if self.conditioning_key is None:
             out = self.diffusion_model(x, t)
@@ -1699,14 +1614,8 @@ class DiffusionWrapper(pl.LightningModule):
                 xc = torch.cat([x] + c_concat + [xx] + mask_cond, dim=1)
             elif (mask_cond is not None):
                 xc = torch.cat([x] + c_concat + mask_cond, dim=1)
-            elif (mask2 is not None):
-                xc = torch.cat([x] + c_concat + mask2, dim=1)
-            elif (mask is not None) and (depth1 is not None):
-                xc = torch.cat([x] + c_concat + depth1 + mask, dim=1)
             elif depth1 is not None:
                 xc = torch.cat([x] + c_concat + depth1, dim=1)
-            elif mask is not None:
-                xc = torch.cat([x] + c_concat + mask, dim=1)
             else:
                 xc = torch.cat([x] + c_concat, dim=1)
             cc = torch.cat(c_crossattn, 1)
