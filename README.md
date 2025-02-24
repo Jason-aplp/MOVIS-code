@@ -27,12 +27,15 @@ Revise the parameters within the script accordingly if one wants to change examp
 We use [SAM](https://github.com/facebookresearch/segment-anything) and [Depth-FM](https://github.com/CompVis/depth-fm) for getting estimated mask and depth. The background area in the depth map should be cropped out.
 
 ## Dataset inference
-Download [C_Obj](https://huggingface.co/datasets/JasonAplp/MOVIS/tree/main/C_Obj) or [C3DFS_test split](https://huggingface.co/datasets/JasonAplp/MOVIS/tree/main/MOVIS-test) for benchmarking.
+Download [C_Obj](https://huggingface.co/datasets/JasonAplp/MOVIS/tree/main/C_Obj) or [C3DFS_test split](https://huggingface.co/datasets/JasonAplp/MOVIS/tree/main/MOVIS-test) for benchmarking. 
+
 ```bash
 bash eval_batch_3d.sh
 bash eval_batch_cobj.sh
 ```
 You should revise the dataset path in the `configs/inference_cobj.yaml` and `configs/inference_c3dfs.yaml` file (data-params-root_dir) before running the training script.
+
+Note that we provide the models used in C_Obj as well, if you only want to use the renderings for benchmarking, please change the path to the `renderings` folder.
 
 ## Training
 Download image-conditioned stable diffusion checkpoint released by Lambda Labs:
@@ -58,7 +61,7 @@ Note that this training script is set for an 8-GPU system, each with 80GB of VRA
 
 
 ## Acknowledgement
-This repository is based on [Zero123](https://github.com/jason-aplp/Zero123). We would like to thank the authors of these work for publicly releasing their code.
+This repository is based on [Zero-1-to-3](https://github.com/cvlab-columbia/zero123). We would like to thank the authors of these work for publicly releasing their code.
 
 ## Citation
 ```
