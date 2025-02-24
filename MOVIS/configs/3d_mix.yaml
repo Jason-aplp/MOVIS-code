@@ -86,8 +86,8 @@ data:
   params:
     debug: True
     root_dir: '/mnt/buffer/luruijie/movis-data'
-    batch_size: 1
-    num_workers: 0
+    batch_size: 172
+    num_workers: 16
     total_view: 12
     depth1: True
     mask_super: True
