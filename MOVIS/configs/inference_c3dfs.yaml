@@ -85,7 +85,7 @@ data:
   target: ldm.data.simple.ObjaverseDataModuleFromConfig
   params:
     debug: True
-    root_dir: /path/to/training_data
+    root_dir: /path/to/c3dfs_test
     batch_size: 172
     num_workers: 16
     total_view: 12

@@ -2,7 +2,7 @@
 
 This repository contains the official implementation for [MOVIS: Enhancing Multi-Object Novel View Synthesis for Indoor Scenes](https://arxiv.org/abs/2412.11457)
 
-### [Project Page](https://jason-aplp.github.io/MOVIS/)  | [Paper](https://arxiv.org/abs/2412.11457) | [Weights](https://huggingface.co/datasets/JasonAplp/MOVIS/blob/main/last.ckpt) | [Dataset](https://huggingface.co/datasets/JasonAplp/MOVIS/tree/main)
+### [Project Page](https://jason-aplp.github.io/MOVIS/)  | [Paper](https://arxiv.org/abs/2412.11457) | [Weights](https://huggingface.co/datasets/JasonAplp/MOVIS/blob/main/last.ckpt) | [Dataset](https://huggingface.co/datasets/JasonAplp/MOVIS/tree/main) | [Rendering_Scripts](https://github.com/Jason-aplp/MOVIS-render)
 
 ## Install
 
@@ -27,10 +27,12 @@ Revise the parameters within the script accordingly if one wants to change examp
 We use [SAM](https://github.com/facebookresearch/segment-anything) and [Depth-FM](https://github.com/CompVis/depth-fm) for getting estimated mask and depth. The background area in the depth map should be cropped out.
 
 ## Dataset inference
-
+Download [C_Obj](https://huggingface.co/datasets/JasonAplp/MOVIS/tree/main/C_Obj) or [C3DFS_test split](https://huggingface.co/datasets/JasonAplp/MOVIS/tree/main/MOVIS-test) for benchmarking.
 ```bash
-bash eval_single.sh
+bash eval_batch_3d.sh
+bash eval_batch_cobj.sh
 ```
+You should revise the dataset path in the `configs/inference_cobj.yaml` and `configs/inference_c3dfs.yaml` file (data-params-root_dir) before running the training script.
 
 ## Training
 Download image-conditioned stable diffusion checkpoint released by Lambda Labs:
