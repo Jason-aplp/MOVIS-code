@@ -3,7 +3,9 @@
 This repository contains the official implementation for [MOVIS: Enhancing Multi-Object Novel View Synthesis for Indoor Scenes](https://arxiv.org/abs/2412.11457)
 
 ### [Project Page](https://jason-aplp.github.io/MOVIS/)  | [Paper](https://arxiv.org/abs/2412.11457) | [Weights](https://huggingface.co/datasets/JasonAplp/MOVIS/blob/main/last.ckpt) | [Dataset](https://huggingface.co/datasets/JasonAplp/MOVIS/tree/main) | [Rendering_Scripts](https://github.com/Jason-aplp/MOVIS-render)
-
+<p align="center">
+    <img src="assets/teaser.png" width=100%>
+</p>
 ## Install
 
 ```bash
