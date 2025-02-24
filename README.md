@@ -6,6 +6,7 @@ This repository contains the official implementation for [MOVIS: Enhancing Multi
 <p align="center">
     <img src="assets/teaser.png" width=100%>
 </p>
+
 ## Install
 
 ```bash
